@@ -2,8 +2,10 @@
 package com.mtaaconnect.backend.controller
 
 import com.mtaaconnect.backend.dto.RegisterRequest
+import com.mtaaconnect.backend.dto.UserResponse
 import com.mtaaconnect.backend.service.UserService
-import com.mtaaconnect.backend.service.RegisteredUserResponse
+import jakarta.validation.Valid
+import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
@@ -18,16 +20,17 @@ class UserController(
 
     @PostMapping("/register")
     fun register(
-        @RequestBody request: RegisterRequest
-    ): ResponseEntity<RegisteredUserResponse> {
+        @Valid @RequestBody request: RegisterRequest
+    ): ResponseEntity<UserResponse> {
 
         val registeredUser = userService.register(
             fullName = request.fullName,
             email = request.email,
             password = request.password,
-            phoneNumber = request.phoneNumber
+            phoneNumber = request.phoneNumber,
+            role = request.role,
         )
 
-        return ResponseEntity.ok(registeredUser)
+        return ResponseEntity.status(HttpStatus.CREATED).body(registeredUser)
     }
 }

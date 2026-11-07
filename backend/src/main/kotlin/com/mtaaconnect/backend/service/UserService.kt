@@ -1,10 +1,12 @@
 package com.mtaaconnect.backend.service
 
+import com.mtaaconnect.backend.dto.UserResponse
 import com.mtaaconnect.backend.model.User
+import com.mtaaconnect.backend.model.UserRole
 import com.mtaaconnect.backend.repository.UserRepository
+import org.springframework.dao.DuplicateKeyException
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
-import java.time.Instant
 import java.util.Locale
 
 @Service
@@ -17,7 +19,8 @@ class UserService(
         email: String,
         password: String,
         phoneNumber: String,
-    ): RegisteredUserResponse {
+        role: UserRole = UserRole.CUSTOMER,
+    ): UserResponse {
         if (fullName.isBlank()) {
             throw IllegalArgumentException("Full name must not be blank")
         }
@@ -30,12 +33,16 @@ class UserService(
         if (phoneNumber.isBlank()) {
             throw IllegalArgumentException("Phone number must not be blank")
         }
+        if (role == UserRole.ADMIN) {
+            throw IllegalArgumentException("Public registration cannot assign the ADMIN role")
+        }
 
         val normalizedEmail = email.trim().lowercase(Locale.ROOT)
+        val normalizedPhoneNumber = phoneNumber.trim()
         if (userRepository.existsByEmail(normalizedEmail)) {
             throw EmailAlreadyRegisteredException()
         }
-        if (userRepository.existsByPhoneNumber(phoneNumber.trim())) {
+        if (userRepository.existsByPhoneNumber(normalizedPhoneNumber)) {
             throw PhoneNumberAlreadyRegisteredException()
         }
 
@@ -45,16 +52,22 @@ class UserService(
             fullName = fullName.trim(),
             email = normalizedEmail,
             passwordHash = passwordHash,
-            phoneNumber = phoneNumber.trim(),
+            phoneNumber = normalizedPhoneNumber,
+            role = role,
         )
-        val savedUser = userRepository.save(user)
+        val savedUser = try {
+            userRepository.save(user)
+        } catch (exception: DuplicateKeyException) {
+            throw AccountAlreadyRegisteredException()
+        }
 
-        return RegisteredUserResponse(
+        return UserResponse(
             id = savedUser.id,
             fullName = savedUser.fullName,
             email = savedUser.email,
             phoneNumber = savedUser.phoneNumber,
             createdAt = savedUser.createdAt,
+            role = savedUser.role,
         )
     }
 
@@ -63,16 +76,11 @@ class UserService(
     }
 }
 
-data class RegisteredUserResponse(
-    val id: String?,
-    val fullName: String,
-    val email: String,
-    val phoneNumber: String,
-    val createdAt: Instant,
-)
-
 class EmailAlreadyRegisteredException :
-    IllegalArgumentException("An account with this email already exists")
+    RuntimeException("An account with this email already exists")
 
 class PhoneNumberAlreadyRegisteredException :
-    IllegalArgumentException("An account with this phone number already exists")
+    RuntimeException("An account with this phone number already exists")
+
+class AccountAlreadyRegisteredException :
+    RuntimeException("An account with this email or phone number already exists")
