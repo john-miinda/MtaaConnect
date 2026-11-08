@@ -6,6 +6,7 @@ import com.mtaaconnect.backend.model.ServiceAvailability
 import com.mtaaconnect.backend.model.User
 import com.mtaaconnect.backend.model.UserRole
 import com.mtaaconnect.backend.repository.ProviderProfileRepository
+import com.mtaaconnect.backend.repository.ProfileImageRepository
 import com.mtaaconnect.backend.repository.ServiceRepository
 import com.mtaaconnect.backend.repository.UserRepository
 import com.mtaaconnect.backend.security.JwtService
@@ -60,11 +61,14 @@ class MarketplaceIntegrationTest {
     private lateinit var providerProfileRepository: ProviderProfileRepository
 
     @MockitoBean
+    private lateinit var profileImageRepository: ProfileImageRepository
+
+    @MockitoBean
     private lateinit var serviceRepository: ServiceRepository
 
     @BeforeEach
     fun resetRepositories() {
-        Mockito.reset(userRepository, providerProfileRepository, serviceRepository)
+        Mockito.reset(userRepository, providerProfileRepository, profileImageRepository, serviceRepository)
     }
 
     @Test
@@ -149,6 +153,25 @@ class MarketplaceIntegrationTest {
             patch("/api/bookings/booking-1/accept")
                 .header("Authorization", "Bearer $customerToken"),
         ).andExpect(status().isForbidden)
+    }
+
+    @Test
+    fun `profile image listing requires authentication and scopes results to the signed in account`() {
+        val customer = customerUser()
+        Mockito.`when`(userRepository.findByEmail(customer.email)).thenReturn(customer)
+        Mockito.`when`(profileImageRepository.findByOwnerUserIdOrderByCreatedAtDesc(customer.id!!))
+            .thenReturn(emptyList())
+
+        mockMvc.perform(get("/api/profile/images"))
+            .andExpect(status().isUnauthorized)
+
+        mockMvc.perform(
+            get("/api/profile/images")
+                .header("Authorization", bearer(customer.email, customer.role)),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$").isArray)
+            .andExpect(jsonPath("$.length()").value(0))
     }
 
     @Test

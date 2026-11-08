@@ -4,6 +4,9 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
 import retrofit2.HttpException
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.toRequestBody
 
 class MarketplaceRepository(
     private val api: MtaaApi,
@@ -70,6 +73,17 @@ class MarketplaceRepository(
 
     suspend fun createProviderProfile(request: ProviderProfileRequest) = api.createProviderProfile(request)
     suspend fun updateProviderProfile(request: ProviderProfileRequest) = api.updateProviderProfile(request)
+    suspend fun myProfileImages() = api.myProfileImages()
+    suspend fun providerImages(id: String) = api.providerImages(id)
+    suspend fun uploadProfileImage(bytes: ByteArray, category: String) = api.uploadProfileImage(
+        file = MultipartBody.Part.createFormData(
+            "file",
+            "upload",
+            bytes.toRequestBody("application/octet-stream".toMediaType()),
+        ),
+        category = category.toRequestBody("text/plain".toMediaType()),
+    )
+    suspend fun deleteProfileImage(id: String) = api.deleteProfileImage(id)
     suspend fun createService(request: ServiceRequest) = api.createService(request)
     suspend fun updateService(id: String, request: ServiceRequest) = api.updateService(id, request)
     suspend fun deleteService(id: String) = api.deleteService(id)

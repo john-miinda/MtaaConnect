@@ -1,9 +1,13 @@
 package com.mtaaconnect.android.ui
 
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.Arrangement
@@ -15,6 +19,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -65,7 +70,16 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.produceState
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.foundation.Image
+import androidx.compose.ui.layout.ContentScale
+import com.mtaaconnect.android.BuildConfig
+import com.mtaaconnect.android.data.ProfileImageDto
 import java.time.LocalDate
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.IOException
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -120,20 +134,23 @@ fun MtaaApp(viewModel: AppViewModel) {
                             "My bookings" -> "bookings"
                             "Dashboard" -> "provider"
                             "Incoming bookings" -> "provider-bookings"
-                            else -> "profile-editor"
+                            else -> if (currentSession.role == "PROVIDER") "profile-editor" else "account-images"
                         }
                         val selected = when (destination) {
                             "home" -> state.route == "home"
                             "bookings" -> state.route == "bookings" || state.route == "booking-detail"
                             "provider" -> state.route == "provider" || state.route == "service-editor"
                             "provider-bookings" -> state.route == "provider-bookings"
-                            else -> state.route == "profile-editor"
+                            else -> state.route == "profile-editor" || state.route == "account-images"
                         }
                         NavigationBarItem(
                             selected = selected,
                             onClick = {
-                                if (destination == "profile-editor") viewModel.editProfile()
-                                else viewModel.navigate(destination)
+                                when (destination) {
+                                    "profile-editor" -> viewModel.editProfile()
+                                    "account-images" -> viewModel.editAccountImages()
+                                    else -> viewModel.navigate(destination)
+                                }
                             },
                             icon = {
                                 Icon(
@@ -171,7 +188,7 @@ private fun AppNavigation(
 ) {
     val destinations = listOf(
         "home", "login", "register", "detail", "provider-public", "bookings", "provider-bookings",
-        "booking-detail", "provider", "profile-editor", "service-editor",
+        "booking-detail", "provider", "profile-editor", "account-images", "service-editor",
     )
     NavHost(navController = navController, startDestination = startDestination) {
         destinations.forEach { destination ->
@@ -204,7 +221,11 @@ private fun AppDestination(state: AppUiState, viewModel: AppViewModel) {
                     },
                     onLogin = { viewModel.returnTo("login") },
                 )
-                "provider-public" -> ProviderPublicScreen(state.selectedProvider) { viewModel.returnTo("detail") }
+                "provider-public" -> ProviderPublicScreen(
+                    state.selectedProvider,
+                    state.publicProviderImages,
+                    state.session?.token,
+                ) { viewModel.returnTo("detail") }
                 "bookings" -> BookingListScreen(
                     title = "My bookings",
                     bookings = state.bookings,
@@ -241,9 +262,20 @@ private fun AppDestination(state: AppUiState, viewModel: AppViewModel) {
                 )
                 "profile-editor" -> ProfileEditorScreen(
                     profile = state.providerProfile,
+                    images = state.profileImages,
                     busy = state.busy,
+                    authToken = state.session?.token,
                     onBack = { viewModel.returnTo("provider") },
                     onSave = viewModel::saveProfile,
+                    onUploadImage = viewModel::uploadProfileImage,
+                    onDeleteImage = viewModel::deleteProfileImage,
+                )
+                "account-images" -> AccountImagesScreen(
+                    images = state.profileImages,
+                    busy = state.busy,
+                    authToken = state.session?.token,
+                    onUpload = { bytes -> viewModel.uploadProfileImage(bytes, "CUSTOMER_PROFILE") },
+                    onDelete = viewModel::deleteProfileImage,
                 )
                 "service-editor" -> ServiceEditorScreen(
                     service = state.selectedService,
@@ -506,6 +538,8 @@ private fun ServiceDetailScreen(
 @Composable
 private fun ProviderPublicScreen(
     provider: com.mtaaconnect.android.data.ProviderProfileDto?,
+    images: List<ProfileImageDto>,
+    authToken: String?,
     onBack: () -> Unit,
 ) {
     if (provider == null) {
@@ -513,6 +547,7 @@ private fun ProviderPublicScreen(
         return
     }
     FormColumn(title = provider.businessName, subtitle = provider.location) {
+        images.forEach { image -> RemoteProfileImage(image, authToken) }
         Text(provider.description)
         Text("Contact: ${provider.contactInformation}")
         GoogleMapsButton(
@@ -700,9 +735,13 @@ private fun ProviderDashboard(
 @Composable
 private fun ProfileEditorScreen(
     profile: com.mtaaconnect.android.data.ProviderProfileDto?,
+    images: List<ProfileImageDto>,
     busy: Boolean,
+    authToken: String?,
     onBack: () -> Unit,
     onSave: (String, String, String, String, String, String, Boolean) -> Unit,
+    onUploadImage: (ByteArray, String) -> Unit,
+    onDeleteImage: (String) -> Unit,
 ) {
     var business by rememberSaveable(profile?.id) { mutableStateOf(profile?.businessName.orEmpty()) }
     var description by rememberSaveable(profile?.id) { mutableStateOf(profile?.description.orEmpty()) }
@@ -712,6 +751,24 @@ private fun ProfileEditorScreen(
     var longitude by rememberSaveable(profile?.id) { mutableStateOf(profile?.longitude?.toString().orEmpty()) }
     var updateExisting by rememberSaveable(profile?.id) { mutableStateOf(profile != null) }
     FormColumn(title = "Provider profile", subtitle = "Tell customers about your business.") {
+        ProfileImageManager(
+            title = "Business profile image",
+            category = "PROVIDER_PROFILE",
+            images = images,
+            busy = busy,
+            authToken = authToken,
+            onUpload = { onUploadImage(it, "PROVIDER_PROFILE") },
+            onDelete = onDeleteImage,
+        )
+        ProfileImageManager(
+            title = "Portfolio",
+            category = "PORTFOLIO",
+            images = images,
+            busy = busy,
+            authToken = authToken,
+            onUpload = { onUploadImage(it, "PORTFOLIO") },
+            onDelete = onDeleteImage,
+        )
         OutlinedTextField(business, { business = it }, label = { Text("Business name") }, modifier = Modifier.fillMaxWidth())
         OutlinedTextField(description, { description = it }, label = { Text("Description") }, modifier = Modifier.fillMaxWidth())
         OutlinedTextField(location, { location = it }, label = { Text("Location") }, modifier = Modifier.fillMaxWidth())
@@ -761,6 +818,149 @@ private fun ProfileEditorScreen(
             modifier = Modifier.fillMaxWidth(),
         ) { if (busy) CircularProgressIndicator() else Text(if (updateExisting) "Update profile" else "Create profile") }
         OutlinedButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) { Text("Back") }
+    }
+}
+
+@Composable
+private fun AccountImagesScreen(
+    images: List<ProfileImageDto>,
+    busy: Boolean,
+    authToken: String?,
+    onUpload: (ByteArray) -> Unit,
+    onDelete: (String) -> Unit,
+) {
+    FormColumn(title = "Profile images", subtitle = "Add or remove photos shown on your account.") {
+        ProfileImageManager(
+            title = "Your photos",
+            category = "CUSTOMER_PROFILE",
+            images = images,
+            busy = busy,
+            authToken = authToken,
+            onUpload = onUpload,
+            onDelete = onDelete,
+        )
+    }
+}
+
+@Composable
+private fun ProfileImageManager(
+    title: String,
+    category: String,
+    images: List<ProfileImageDto>,
+    busy: Boolean,
+    authToken: String?,
+    onUpload: (ByteArray) -> Unit,
+    onDelete: (String) -> Unit,
+) {
+    val context = LocalContext.current
+    var selectedBytes by remember(category) { mutableStateOf<ByteArray?>(null) }
+    var selectedBitmap by remember(category) { mutableStateOf<Bitmap?>(null) }
+    var selectionError by remember(category) { mutableStateOf<String?>(null) }
+    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) {
+            try {
+                val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                    ?: throw IOException("The selected image could not be opened.")
+                if (bytes.size > 5 * 1024 * 1024) {
+                    selectionError = "Choose an image up to 5 MB."
+                    selectedBytes = null
+                    selectedBitmap = null
+                } else {
+                    val options = BitmapFactory.Options().apply { inSampleSize = 4 }
+                    selectedBytes = bytes
+                    selectedBitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
+                    selectionError = if (selectedBitmap == null) "The selected file is not a supported image." else null
+                }
+            } catch (exception: IOException) {
+                selectionError = exception.message ?: "The selected image could not be read."
+                selectedBytes = null
+                selectedBitmap = null
+            }
+        }
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            OutlinedButton(onClick = { imagePicker.launch("image/*") }, enabled = !busy) {
+                Text("Choose image")
+            }
+            selectedBytes?.takeIf { selectedBitmap != null }?.let { bytes ->
+                Button(onClick = { onUpload(bytes) }, enabled = !busy) {
+                    if (busy) CircularProgressIndicator() else Text("Upload")
+                }
+            }
+        }
+        selectedBitmap?.let { bitmap ->
+            Image(
+                bitmap = bitmap.asImageBitmap(),
+                contentDescription = "Selected image preview",
+                modifier = Modifier.size(112.dp),
+                contentScale = ContentScale.Crop,
+            )
+        }
+        selectionError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        val matchingImages = images.filter { it.category == category }
+        if (matchingImages.isEmpty()) {
+            Text("No images uploaded yet.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        } else {
+            matchingImages.forEach { image ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    RemoteProfileImage(image, authToken)
+                    TextButton(onClick = { onDelete(image.id) }, enabled = !busy) { Text("Remove") }
+                }
+            }
+        }
+    }
+}
+
+private data class ProfileImageLoadState(
+    val finished: Boolean = false,
+    val bitmap: Bitmap? = null,
+)
+
+@Composable
+private fun RemoteProfileImage(image: ProfileImageDto, authToken: String?) {
+    val loadState by produceState(ProfileImageLoadState(), image.id, authToken) {
+        value = withContext(Dispatchers.IO) {
+            if (!image.url.startsWith("/api/media/")) {
+                ProfileImageLoadState(finished = true)
+            } else {
+                val connection = java.net.URL(BuildConfig.API_BASE_URL.trimEnd('/') + image.url)
+                    .openConnection() as java.net.HttpURLConnection
+                try {
+                    connection.connectTimeout = 10_000
+                    connection.readTimeout = 15_000
+                    connection.setRequestProperty("Accept", image.contentType)
+                    authToken?.let { connection.setRequestProperty("Authorization", "Bearer $it") }
+                    val bitmap = if (connection.responseCode in 200..299) {
+                        connection.inputStream.use { BitmapFactory.decodeStream(it) }
+                    } else {
+                        null
+                    }
+                    ProfileImageLoadState(finished = true, bitmap = bitmap)
+                } catch (_: IOException) {
+                    ProfileImageLoadState(finished = true)
+                } finally {
+                    connection.disconnect()
+                }
+            }
+        }
+    }
+    val loadedBitmap = loadState.bitmap
+    when {
+        loadedBitmap != null -> Image(
+            bitmap = loadedBitmap.asImageBitmap(),
+            contentDescription = image.category.lowercase().replace('_', ' '),
+            modifier = Modifier.size(112.dp),
+            contentScale = ContentScale.Crop,
+        )
+        loadState.finished -> Text("Image unavailable", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        else -> CircularProgressIndicator(modifier = Modifier.size(28.dp))
     }
 }
 

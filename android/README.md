@@ -75,3 +75,8 @@ Google Maps from the public provider profile. The link opens Google Maps (or a
 browser) and does not require a Google Maps SDK or API key. Shared coordinates
 are public, so providers should use a business location they are comfortable
 sharing.
+
+Customers can upload and remove profile images from the Profile tab. Providers
+can manage a business profile image and multiple portfolio images from their
+provider profile editor. JPEG and PNG images up to 5 MB are supported; uploads
+are sent to the configured backend URL and require an authenticated session.

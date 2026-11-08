@@ -43,6 +43,16 @@ data class ProviderProfileRequest(
     val longitude: Double? = null,
 )
 
+data class ProfileImageDto(
+    val id: String,
+    val category: String,
+    val url: String,
+    val serviceId: String?,
+    val contentType: String,
+    val sizeBytes: Long,
+    val createdAt: String,
+)
+
 data class ServiceDto(
     val id: String?,
     val providerId: String,

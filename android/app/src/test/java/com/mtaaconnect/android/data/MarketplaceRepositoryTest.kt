@@ -162,6 +162,28 @@ class MarketplaceRepositoryTest {
     }
 
     @Test
+    fun `profile image upload uses authenticated multipart API`() = runBlocking {
+        storage.save(session("provider@example.com", "PROVIDER"))
+        server.enqueue(
+            MockResponse().setResponseCode(201).setBody(
+                """{"id":"image-1","category":"PORTFOLIO","url":"/api/media/image-1","serviceId":null,"contentType":"image/png","sizeBytes":4,"createdAt":"2026-01-01T00:00:00Z"}""",
+            ),
+        )
+
+        val image = repository.uploadProfileImage(byteArrayOf(1, 2, 3, 4), "PORTFOLIO")
+        val request = server.takeRequest()
+        val body = request.body.readUtf8()
+
+        assertEquals("image-1", image.id)
+        assertEquals("/api/profile/images", request.path)
+        assertTrue(request.getHeader("Authorization")?.startsWith("Bearer ") == true)
+        assertTrue(request.getHeader("Content-Type")?.startsWith("multipart/form-data;") == true)
+        assertTrue(body.contains("""name="category""""))
+        assertTrue(body.contains("PORTFOLIO"))
+        assertTrue(body.contains("""name="file"; filename="upload""""))
+    }
+
+    @Test
     fun `unauthorized response triggers session expiration callback and readable error`() = runBlocking {
         storage.save(session("customer@example.com", "CUSTOMER"))
         server.enqueue(MockResponse().setResponseCode(401).setBody("""{"error":"Unauthorized"}"""))
@@ -188,7 +210,7 @@ class MarketplaceRepositoryTest {
 
     @Test
     fun `role navigation does not grant management navigation to admin`() {
-        assertEquals(listOf("Explore", "My bookings"), navigationItemsFor("CUSTOMER"))
+        assertEquals(listOf("Explore", "My bookings", "Profile"), navigationItemsFor("CUSTOMER"))
         assertEquals(listOf("Dashboard", "Incoming bookings", "Profile"), navigationItemsFor("PROVIDER"))
         assertEquals(listOf("Explore"), navigationItemsFor("ADMIN"))
         assertEquals(listOf("Explore"), navigationItemsFor(null))

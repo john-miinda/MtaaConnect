@@ -7,8 +7,12 @@ import retrofit2.http.GET
 import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.PUT
+import retrofit2.http.Multipart
+import retrofit2.http.Part
 import retrofit2.http.Path
 import retrofit2.http.Query
+import okhttp3.MultipartBody
+import okhttp3.RequestBody
 
 interface MtaaApi {
     @POST("api/auth/login")
@@ -40,6 +44,22 @@ interface MtaaApi {
 
     @PUT("api/providers/profile")
     suspend fun updateProviderProfile(@Body request: ProviderProfileRequest): ProviderProfileDto
+
+    @GET("api/profile/images")
+    suspend fun myProfileImages(): List<ProfileImageDto>
+
+    @GET("api/providers/{providerId}/images")
+    suspend fun providerImages(@Path("providerId") providerId: String): List<ProfileImageDto>
+
+    @Multipart
+    @POST("api/profile/images")
+    suspend fun uploadProfileImage(
+        @Part file: MultipartBody.Part,
+        @Part("category") category: RequestBody,
+    ): ProfileImageDto
+
+    @DELETE("api/profile/images/{id}")
+    suspend fun deleteProfileImage(@Path("id") id: String): Response<Unit>
 
     @POST("api/services")
     suspend fun createService(@Body request: ServiceRequest): ServiceDto

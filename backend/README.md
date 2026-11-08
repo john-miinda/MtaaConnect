@@ -76,6 +76,30 @@ repository; public discovery returns only `AVAILABLE` listings, while the
 authenticated provider endpoint returns all of that provider's listings for
 management.
 
+### Profile and portfolio images
+
+Authenticated customers can upload one or more `CUSTOMER_PROFILE` images.
+Providers can upload `PROVIDER_PROFILE`, `PORTFOLIO`, and service-specific
+`SERVICE` images; service images require a `serviceId` owned by the signed-in
+provider. Uploads accept valid JPEG/PNG files up to 5 MB and 25 megapixels.
+MongoDB stores ownership and image metadata, while binary files are written to
+`UPLOAD_DIR` (default `./uploads`). Configure `UPLOAD_DIR` to a persistent,
+access-controlled volume in production and include it in backup/retention
+planning.
+
+| Method | Endpoint | Access |
+| --- | --- | --- |
+| `POST` | `/api/profile/images` | Authenticated; multipart fields `file`, `category`, optional `serviceId` |
+| `GET` | `/api/profile/images` | Authenticated account's images |
+| `DELETE` | `/api/profile/images/{id}` | Owning account |
+| `GET` | `/api/providers/{providerId}/images` | Public provider profile and portfolio images |
+| `GET` | `/api/services/{serviceId}/images` | Public images for available services |
+| `GET` | `/api/media/{id}` | Public provider/service images; customer profile images require owner authentication |
+
+Uploaded file bytes are never stored in MongoDB. Configure a durable volume
+before deploying or moving the backend between hosts; otherwise image files
+will not follow the database.
+
 ## Android client
 
 The Android emulator uses `http://10.0.2.2:8080/` for the local backend by

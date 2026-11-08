@@ -35,15 +35,28 @@ class SecurityConfig {
             }
             .authorizeHttpRequests {
                 it.requestMatchers(HttpMethod.POST, "/api/users/register", "/api/auth/login").permitAll()
+                    .requestMatchers(HttpMethod.GET, "/api/media/**").permitAll()
                     .requestMatchers(
                         HttpMethod.GET,
                         "/api/providers/profile",
                         "/api/providers/profile/services",
                     )
                     .hasRole("PROVIDER")
-                    .requestMatchers(HttpMethod.GET, "/api/providers/**", "/api/services/**").permitAll()
+                    .requestMatchers(
+                        HttpMethod.GET,
+                        "/api/providers/*/images",
+                        "/api/services/**",
+                    )
+                    .permitAll()
+                    .requestMatchers(HttpMethod.GET, "/api/providers/**").permitAll()
                     .requestMatchers(HttpMethod.POST, "/api/providers/profile", "/api/services")
                     .hasRole("PROVIDER")
+                    .requestMatchers(HttpMethod.POST, "/api/profile/images")
+                    .authenticated()
+                    .requestMatchers(HttpMethod.GET, "/api/profile/images")
+                    .authenticated()
+                    .requestMatchers(HttpMethod.DELETE, "/api/profile/images/**")
+                    .authenticated()
                     .requestMatchers(HttpMethod.PUT, "/api/providers/profile", "/api/services/**")
                     .hasRole("PROVIDER")
                     .requestMatchers(HttpMethod.DELETE, "/api/services/**")

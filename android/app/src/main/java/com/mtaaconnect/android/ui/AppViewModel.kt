@@ -9,6 +9,7 @@ import com.mtaaconnect.android.data.BookingDto
 import com.mtaaconnect.android.data.MarketplaceRepository
 import com.mtaaconnect.android.data.ProviderProfileDto
 import com.mtaaconnect.android.data.ProviderProfileRequest
+import com.mtaaconnect.android.data.ProfileImageDto
 import com.mtaaconnect.android.data.SecureSessionStore
 import com.mtaaconnect.android.data.ServiceDto
 import com.mtaaconnect.android.data.ServiceRequest
@@ -42,6 +43,8 @@ data class AppUiState(
     val locationFilter: String = "",
     val profileId: String? = null,
     val providerProfile: ProviderProfileDto? = null,
+    val profileImages: List<ProfileImageDto> = emptyList(),
+    val publicProviderImages: List<ProfileImageDto> = emptyList(),
 )
 
 class AppViewModel(application: Application) : AndroidViewModel(application) {
@@ -107,6 +110,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun editProfile() {
         _state.value = _state.value.copy(route = "profile-editor", error = null)
+        refreshProfileImages()
+    }
+
+    fun editAccountImages() {
+        _state.value = _state.value.copy(route = "account-images", error = null)
+        refreshProfileImages()
     }
 
     fun returnTo(route: String) {
@@ -117,7 +126,62 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val id = service.providerId
         launchRequest {
             val provider = repository.provider(id)
-            _state.value = _state.value.copy(selectedProvider = provider, route = "provider-public")
+            val images = repository.providerImages(id)
+            _state.value = _state.value.copy(
+                selectedProvider = provider,
+                publicProviderImages = images,
+                route = "provider-public",
+            )
+        }
+    }
+
+    fun uploadProfileImage(bytes: ByteArray, category: String) {
+        if (bytes.isEmpty() || bytes.size > MAX_IMAGE_SIZE_BYTES) {
+            _state.value = _state.value.copy(error = "Choose a JPEG or PNG image up to 5 MB.")
+            return
+        }
+        launchRequest(busy = true) {
+            repository.uploadProfileImage(bytes, category)
+            val images = repository.myProfileImages()
+            val profileId = _state.value.profileId
+            val publicImages = if (profileId == null) {
+                _state.value.publicProviderImages
+            } else {
+                repository.providerImages(profileId)
+            }
+            _state.value = _state.value.copy(
+                profileImages = images,
+                publicProviderImages = publicImages,
+                notice = "Image uploaded.",
+            )
+        }
+    }
+
+    fun deleteProfileImage(id: String) {
+        launchRequest(busy = true) {
+            repository.deleteProfileImage(id)
+            val images = repository.myProfileImages()
+            val profileId = _state.value.profileId
+            val publicImages = if (profileId == null) {
+                _state.value.publicProviderImages
+            } else {
+                repository.providerImages(profileId)
+            }
+            _state.value = _state.value.copy(
+                profileImages = images,
+                publicProviderImages = publicImages,
+                notice = "Image removed.",
+            )
+        }
+    }
+
+    private fun refreshProfileImages() {
+        if (_state.value.session == null) return
+        launchRequest {
+            val images = repository.myProfileImages()
+            val profileId = _state.value.profileId
+            val publicImages = if (profileId == null) emptyList() else repository.providerImages(profileId)
+            _state.value = _state.value.copy(profileImages = images, publicProviderImages = publicImages)
         }
     }
 
@@ -421,6 +485,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     private companion object {
         const val PROFILE_ID_KEY = "provider_profile_id"
+        const val MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024
     }
 
     private enum class RequestErrorTarget {
