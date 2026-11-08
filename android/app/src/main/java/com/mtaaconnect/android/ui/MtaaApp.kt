@@ -231,7 +231,8 @@ private fun AppDestination(state: AppUiState, viewModel: AppViewModel) {
                 "provider" -> ProviderDashboard(
                     services = state.providerServices,
                     profileId = state.profileId,
-                    loading = state.loading,
+                    loading = state.providerServicesLoading,
+                    error = state.providerServicesError,
                     onProfile = viewModel::editProfile,
                     onAddService = { viewModel.editService(null) },
                     onEdit = viewModel::editService,
@@ -252,7 +253,8 @@ private fun AppDestination(state: AppUiState, viewModel: AppViewModel) {
                 )
                 else -> ExploreScreen(
                     services = state.services,
-                    loading = state.loading,
+                    loading = state.servicesLoading,
+                    error = state.servicesError,
                     category = state.categoryFilter,
                     location = state.locationFilter,
                     role = state.session?.role,
@@ -358,6 +360,7 @@ private fun RegisterScreen(
 private fun ExploreScreen(
     services: List<ServiceDto>,
     loading: Boolean,
+    error: String?,
     category: String,
     location: String,
     role: String?,
@@ -440,7 +443,11 @@ private fun ExploreScreen(
         }
         Spacer(Modifier.height(12.dp))
         if (loading && services.isEmpty()) LoadingState()
-        else if (services.isEmpty()) EmptyState("No services found", "Try another category or location.", onRefresh)
+        else if (services.isEmpty() && error != null) {
+            EmptyState("Couldn't load services", "Check your connection and try again.", onRefresh)
+        } else if (services.isEmpty()) {
+            EmptyState("No services found", "Try another category or location.", onRefresh)
+        }
         else LazyColumn(
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 20.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -611,6 +618,7 @@ private fun ProviderDashboard(
     services: List<ServiceDto>,
     profileId: String?,
     loading: Boolean,
+    error: String?,
     onProfile: () -> Unit,
     onAddService: () -> Unit,
     onEdit: (ServiceDto) -> Unit,
@@ -649,6 +657,16 @@ private fun ProviderDashboard(
             if (profileId == null) Text("Create your provider profile before publishing services.")
         }
         if (loading && services.isEmpty()) LoadingState()
+        else if (services.isEmpty() && error != null) EmptyState(
+            "Couldn't load your listings",
+            "Check your connection and try again.",
+            onRefresh,
+        )
+        else if (services.isEmpty() && profileId == null) EmptyState(
+            "Set up your provider profile",
+            "Create your business profile before adding service listings.",
+            onProfile,
+        )
         else if (services.isEmpty()) EmptyState(
             "No service listings",
             "Create your first listing to help customers discover your business.",

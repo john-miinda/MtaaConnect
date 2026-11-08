@@ -35,6 +35,12 @@ class SecurityConfig {
             }
             .authorizeHttpRequests {
                 it.requestMatchers(HttpMethod.POST, "/api/users/register", "/api/auth/login").permitAll()
+                    .requestMatchers(
+                        HttpMethod.GET,
+                        "/api/providers/profile",
+                        "/api/providers/profile/services",
+                    )
+                    .hasRole("PROVIDER")
                     .requestMatchers(HttpMethod.GET, "/api/providers/**", "/api/services/**").permitAll()
                     .requestMatchers(HttpMethod.POST, "/api/providers/profile", "/api/services")
                     .hasRole("PROVIDER")

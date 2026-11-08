@@ -14,6 +14,10 @@ variable to use another backend:
 .\gradlew.bat -PMTAA_API_BASE_URL=http://192.168.1.20:8080/ assembleDebug
 ```
 
+For a physical device, use the computer's LAN IP and ensure the backend is
+reachable through the firewall; `10.0.2.2` only works from the Android
+emulator. The Retrofit client reads this configured URL from `BuildConfig`.
+
 Cleartext networking is only enabled for debug builds configured with an HTTP
 URL. Release builds require an absolute HTTPS URL and a release keystore; they
 enable code/resource shrinking and keep debug network traffic disabled.
@@ -31,6 +35,11 @@ credentials, JWT signing secrets, or database connection strings.
 Start the backend separately from the `backend` directory with its normal
 environment configured. Requests from a physical device need a reachable host
 address rather than the emulator's `10.0.2.2` alias.
+
+Providers can manage all of their listings, including unavailable ones, from
+any device after signing in. The app retrieves the provider profile and
+listings from authenticated backend endpoints instead of relying on a
+device-local profile ID.
 
 ## Build and test
 
@@ -66,10 +75,3 @@ Google Maps from the public provider profile. The link opens Google Maps (or a
 browser) and does not require a Google Maps SDK or API key. Shared coordinates
 are public, so providers should use a business location they are comfortable
 sharing.
-
-The backend does not currently expose an endpoint to retrieve the authenticated
-provider's profile or service listings by user identity. After profile creation
-the app keeps the returned profile ID locally to load that provider's listings.
-If that local ID is unavailable, the provider can still enter their profile
-details and choose the existing-profile update operation; the backend performs
-the ownership check.

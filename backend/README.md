@@ -59,6 +59,8 @@ required. Treat the coordinates as public business-location information.
 | Method | Endpoint | Access |
 | --- | --- | --- |
 | `POST` | `/api/providers/profile` | Provider |
+| `GET` | `/api/providers/profile` | Owning provider |
+| `GET` | `/api/providers/profile/services` | Owning provider; all listing statuses |
 | `GET` | `/api/providers/{id}` | Public |
 | `PUT` | `/api/providers/profile` | Owning provider |
 | `POST` | `/api/services` | Provider with profile |
@@ -69,7 +71,10 @@ required. Treat the coordinates as public business-location information.
 | `DELETE` | `/api/services/{id}` | Owning provider |
 
 Marketplace endpoint tests mock MongoDB repositories and do not require a live
-MongoDB instance.
+MongoDB instance. Service creation persists through the MongoDB service
+repository; public discovery returns only `AVAILABLE` listings, while the
+authenticated provider endpoint returns all of that provider's listings for
+management.
 
 ## Android client
 

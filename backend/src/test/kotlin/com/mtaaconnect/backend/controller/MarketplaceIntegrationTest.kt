@@ -11,6 +11,7 @@ import com.mtaaconnect.backend.repository.UserRepository
 import com.mtaaconnect.backend.security.JwtService
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.mockito.Mockito
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
@@ -28,6 +29,7 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import java.math.BigDecimal
 import java.util.Optional
+import org.mockito.ArgumentCaptor
 
 private const val MARKETPLACE_TEST_JWT_SECRET =
     "bWFya2V0cGxhY2UtdGVzdC1zZWNyZXQtd2l0aC1tb3JlLXRoYW4tMzItYnl0ZXM="
@@ -211,6 +213,67 @@ class MarketplaceIntegrationTest {
     }
 
     @Test
+    fun `provider can retrieve their own profile and managed services without a locally stored profile ID`() {
+        val provider = providerUser()
+        val profile = providerProfile(provider.id!!, "profile-1")
+        val availableService = service("service-1", "profile-1")
+        val unavailableService = service("service-2", "profile-1").copy(
+            name = "Seasonal repairs",
+            availabilityStatus = ServiceAvailability.UNAVAILABLE,
+        )
+        Mockito.`when`(userRepository.findByEmail(provider.email)).thenReturn(provider)
+        Mockito.`when`(providerProfileRepository.findByUserId(provider.id)).thenReturn(profile)
+        Mockito.`when`(serviceRepository.findByProviderId("profile-1"))
+            .thenReturn(listOf(availableService, unavailableService))
+
+        mockMvc.perform(
+            get("/api/providers/profile")
+                .header("Authorization", bearer(provider.email, provider.role)),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.id").value("profile-1"))
+
+        mockMvc.perform(
+            get("/api/providers/profile/services")
+                .header("Authorization", bearer(provider.email, provider.role)),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.length()").value(2))
+            .andExpect(jsonPath("$[0].availabilityStatus").value("AVAILABLE"))
+            .andExpect(jsonPath("$[1].availabilityStatus").value("UNAVAILABLE"))
+    }
+
+    @Test
+    fun `provider-only management reads reject customers and unauthenticated callers`() {
+        val customer = customerUser()
+        val providerProfilePath = get("/api/providers/profile")
+        val managedServicesPath = get("/api/providers/profile/services")
+
+        mockMvc.perform(providerProfilePath).andExpect(status().isUnauthorized)
+        mockMvc.perform(managedServicesPath).andExpect(status().isUnauthorized)
+        mockMvc.perform(
+            get("/api/providers/profile").header("Authorization", bearer(customer.email, customer.role)),
+        ).andExpect(status().isForbidden)
+        mockMvc.perform(
+            get("/api/providers/profile/services").header("Authorization", bearer(customer.email, customer.role)),
+        ).andExpect(status().isForbidden)
+    }
+
+    @Test
+    fun `new provider without a profile receives an empty managed listing collection`() {
+        val provider = providerUser()
+        Mockito.`when`(userRepository.findByEmail(provider.email)).thenReturn(provider)
+        Mockito.`when`(providerProfileRepository.findByUserId(provider.id!!)).thenReturn(null)
+
+        mockMvc.perform(
+            get("/api/providers/profile/services")
+                .header("Authorization", bearer(provider.email, provider.role)),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.length()").value(0))
+    }
+
+    @Test
     fun `provider map coordinates must be complete and within geographic bounds`() {
         val provider = providerUser()
         val authorization = bearer(provider.email, provider.role)
@@ -285,6 +348,19 @@ class MarketplaceIntegrationTest {
             .andExpect(status().isCreated)
             .andExpect(jsonPath("$.id").value("service-1"))
             .andExpect(jsonPath("$.providerId").value("profile-1"))
+            .andExpect(jsonPath("$.availabilityStatus").value("AVAILABLE"))
+
+        val persistedService = ArgumentCaptor.forClass(Service::class.java)
+        Mockito.verify(serviceRepository).save(persistedService.capture())
+        assertEquals("profile-1", persistedService.value.providerId)
+        assertEquals(ServiceAvailability.AVAILABLE, persistedService.value.availabilityStatus)
+
+        Mockito.`when`(serviceRepository.findByAvailabilityStatus(ServiceAvailability.AVAILABLE))
+            .thenReturn(listOf(persistedService.value.copy(id = "service-1")))
+        mockMvc.perform(get("/api/services"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$[0].id").value("service-1"))
+            .andExpect(jsonPath("$[0].name").value("Tap repair"))
     }
 
     @Test

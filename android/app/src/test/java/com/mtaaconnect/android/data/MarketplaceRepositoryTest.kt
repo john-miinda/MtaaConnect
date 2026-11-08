@@ -106,6 +106,62 @@ class MarketplaceRepositoryTest {
     }
 
     @Test
+    fun `provider reloads profile and all managed services from authenticated endpoints`() = runBlocking {
+        storage.save(session("provider@example.com", "PROVIDER"))
+        server.enqueue(
+            MockResponse().setResponseCode(200).setBody(
+                """{"id":"profile-1","userId":"provider-1","businessName":"Repairs","description":"Home repairs","location":"Nairobi","contactInformation":"123","latitude":null,"longitude":null,"createdAt":"2026-01-01T00:00:00Z","updatedAt":"2026-01-01T00:00:00Z"}""",
+            ),
+        )
+        server.enqueue(
+            MockResponse().setResponseCode(200).setBody(
+                """[{"id":"s1","providerId":"profile-1","name":"Available repair","description":"Fixes","category":"Home","price":25.0,"location":"Nairobi","availabilityStatus":"AVAILABLE","createdAt":"2026-01-01T00:00:00Z","updatedAt":"2026-01-01T00:00:00Z"},{"id":"s2","providerId":"profile-1","name":"Paused repair","description":"Paused","category":"Home","price":30.0,"location":"Nairobi","availabilityStatus":"UNAVAILABLE","createdAt":"2026-01-01T00:00:00Z","updatedAt":"2026-01-01T00:00:00Z"}]""",
+            ),
+        )
+
+        val profile = repository.myProviderProfile()
+        val services = repository.myProviderServices()
+        val profileRequest = server.takeRequest()
+        val servicesRequest = server.takeRequest()
+
+        assertEquals("profile-1", profile?.id)
+        assertEquals(listOf("AVAILABLE", "UNAVAILABLE"), services.map { it.availabilityStatus })
+        assertEquals("/api/providers/profile", profileRequest.path)
+        assertTrue(profileRequest.getHeader("Authorization")?.startsWith("Bearer ") == true)
+        assertEquals("/api/providers/profile/services", servicesRequest.path)
+        assertTrue(servicesRequest.getHeader("Authorization")?.startsWith("Bearer ") == true)
+    }
+
+    @Test
+    fun `provider profile lookup treats a missing profile as a new provider`() = runBlocking {
+        storage.save(session("provider@example.com", "PROVIDER"))
+        server.enqueue(MockResponse().setResponseCode(404).setBody("""{"error":"Provider profile not found"}"""))
+
+        assertNull(repository.myProviderProfile())
+        assertEquals("/api/providers/profile", server.takeRequest().path)
+    }
+
+    @Test
+    fun `provider service creation sends publishable listing to configured API`() = runBlocking {
+        storage.save(session("provider@example.com", "PROVIDER"))
+        server.enqueue(
+            MockResponse().setResponseCode(201).setBody(
+                """{"id":"s1","providerId":"profile-1","name":"Repair","description":"Fixes","category":"Home","price":25.0,"location":"Nairobi","availabilityStatus":"AVAILABLE","createdAt":"2026-01-01T00:00:00Z","updatedAt":"2026-01-01T00:00:00Z"}""",
+            ),
+        )
+
+        val service = repository.createService(
+            ServiceRequest("Repair", "Fixes", "Home", "25.00", "Nairobi", "AVAILABLE"),
+        )
+        val request = server.takeRequest()
+
+        assertEquals("s1", service.id)
+        assertEquals("/api/services", request.path)
+        assertTrue(request.getHeader("Authorization")?.startsWith("Bearer ") == true)
+        assertTrue(request.body.readUtf8().contains(""""availabilityStatus":"AVAILABLE""""))
+    }
+
+    @Test
     fun `unauthorized response triggers session expiration callback and readable error`() = runBlocking {
         storage.save(session("customer@example.com", "CUSTOMER"))
         server.enqueue(MockResponse().setResponseCode(401).setBody("""{"error":"Unauthorized"}"""))

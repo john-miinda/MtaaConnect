@@ -73,6 +73,13 @@ class MarketplaceService(
             .map { it.toResponse() }
     }
 
+    fun getManagedByProvider(email: String): List<ServiceResponse> {
+        val user = requireProvider(email)
+        val profile = providerProfileRepository.findByUserId(requireUserId(user)) ?: return emptyList()
+        val providerId = requireNotNull(profile.id) { "Persisted provider profile is missing an ID" }
+        return serviceRepository.findByProviderId(providerId).map { it.toResponse() }
+    }
+
     fun update(email: String, id: String, request: ServiceRequest): ServiceResponse {
         val user = requireProvider(email)
         val service = serviceRepository.findById(id)

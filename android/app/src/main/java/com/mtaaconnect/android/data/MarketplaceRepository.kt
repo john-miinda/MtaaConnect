@@ -3,6 +3,7 @@ package com.mtaaconnect.android.data
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
+import retrofit2.HttpException
 
 class MarketplaceRepository(
     private val api: MtaaApi,
@@ -56,6 +57,17 @@ class MarketplaceRepository(
     suspend fun booking(id: String) = api.booking(id)
     suspend fun provider(id: String) = api.provider(id)
     suspend fun providerServices(id: String) = api.providerServices(id)
+    suspend fun myProviderServices() = api.myProviderServices()
+    suspend fun myProviderProfile(): ProviderProfileDto? {
+        val response = api.myProviderProfile()
+        if (response.isSuccessful) {
+            return response.body()
+                ?: throw ApiFailure(message = "The server returned an empty provider profile.")
+        }
+        if (response.code() == 404) return null
+        throw HttpException(response)
+    }
+
     suspend fun createProviderProfile(request: ProviderProfileRequest) = api.createProviderProfile(request)
     suspend fun updateProviderProfile(request: ProviderProfileRequest) = api.updateProviderProfile(request)
     suspend fun createService(request: ServiceRequest) = api.createService(request)

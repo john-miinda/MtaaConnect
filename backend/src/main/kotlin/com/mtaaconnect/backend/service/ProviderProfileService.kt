@@ -66,6 +66,12 @@ class ProviderProfileService(
             MarketplaceNotFoundException("Provider profile not found")
         }.toResponse()
 
+    fun getForProvider(email: String): ProviderProfileResponse {
+        val user = requireProvider(email)
+        return providerProfileRepository.findByUserId(requireUserId(user))?.toResponse()
+            ?: throw MarketplaceNotFoundException("Provider profile not found")
+    }
+
     private fun requireProvider(email: String): User {
         val user = userRepository.findByEmail(email)
             ?: throw MarketplaceNotFoundException("User not found")

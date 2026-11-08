@@ -29,6 +29,12 @@ interface MtaaApi {
     @GET("api/providers/{id}")
     suspend fun provider(@Path("id") id: String): ProviderProfileDto
 
+    @GET("api/providers/profile")
+    suspend fun myProviderProfile(): Response<ProviderProfileDto>
+
+    @GET("api/providers/profile/services")
+    suspend fun myProviderServices(): List<ServiceDto>
+
     @POST("api/providers/profile")
     suspend fun createProviderProfile(@Body request: ProviderProfileRequest): ProviderProfileDto
 

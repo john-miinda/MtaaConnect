@@ -25,9 +25,13 @@ data class AppUiState(
     val session: Session? = null,
     val route: String = "home",
     val loading: Boolean = false,
+    val servicesLoading: Boolean = false,
+    val providerServicesLoading: Boolean = false,
     val busy: Boolean = false,
     val error: String? = null,
     val notice: String? = null,
+    val servicesError: String? = null,
+    val providerServicesError: String? = null,
     val services: List<ServiceDto> = emptyList(),
     val providerServices: List<ServiceDto> = emptyList(),
     val bookings: List<BookingDto> = emptyList(),
@@ -71,11 +75,16 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             },
         )
         repository = MarketplaceRepository(client.api, store)
-        refreshServices()
-        if (_state.value.session?.role == "CUSTOMER") refreshBookings()
-        if (_state.value.session?.role == "PROVIDER") {
-            refreshBookings()
-            refreshProviderServices()
+        when (_state.value.session?.role) {
+            "PROVIDER" -> {
+                refreshBookings()
+                refreshProviderServices()
+            }
+            "CUSTOMER" -> {
+                refreshServices()
+                refreshBookings()
+            }
+            else -> refreshServices()
         }
     }
 
@@ -126,7 +135,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun refreshServices(category: String = _state.value.categoryFilter, location: String = _state.value.locationFilter) {
-        launchRequest(loading = true) {
+        launchRequest(serviceLoading = true, errorTarget = RequestErrorTarget.SERVICES) {
             val services = repository.services(category, location)
             _state.value = _state.value.copy(services = services)
         }
@@ -145,8 +154,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 error = null,
                 notice = "Welcome, ${session.fullName}.",
             )
-            if (session.role == "PROVIDER") refreshProviderServices()
-            refreshServices()
+            if (session.role == "PROVIDER") {
+                refreshProviderServices()
+                refreshBookings()
+            } else {
+                refreshServices()
+                if (session.role == "CUSTOMER") refreshBookings()
+            }
         }
     }
 
@@ -307,29 +321,88 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun refreshProviderServices() {
-        val profileId = _state.value.profileId ?: return
-        launchRequest(loading = true) {
-            _state.value = _state.value.copy(providerServices = repository.providerServices(profileId))
-        }
-        launchRequest {
-            val profile = repository.provider(profileId)
-            _state.value = _state.value.copy(providerProfile = profile)
+        if (_state.value.session?.role != "PROVIDER") return
+        launchRequest(
+            providerServicesLoading = true,
+            errorTarget = RequestErrorTarget.PROVIDER_SERVICES,
+        ) {
+            val profile = repository.myProviderProfile()
+            val profileId = profile?.id
+            if (profile != null && profileId == null) {
+                error("The server returned a provider profile without an ID.")
+            }
+            if (profileId == null) {
+                profilePreferences.edit().remove(PROFILE_ID_KEY).apply()
+            } else {
+                profilePreferences.edit().putString(PROFILE_ID_KEY, profileId).apply()
+            }
+            val services = repository.myProviderServices()
+            _state.value = _state.value.copy(
+                providerProfile = profile,
+                profileId = profileId,
+                providerServices = services,
+            )
         }
     }
 
     private fun launchRequest(
         loading: Boolean = false,
+        serviceLoading: Boolean? = null,
+        providerServicesLoading: Boolean? = null,
         busy: Boolean = false,
+        errorTarget: RequestErrorTarget? = null,
         request: suspend () -> Unit,
     ) {
         viewModelScope.launch {
-            _state.value = _state.value.copy(loading = loading, busy = busy, error = null, notice = null)
+            val currentState = _state.value
+            _state.value = currentState.copy(
+                loading = loading,
+                servicesLoading = serviceLoading ?: currentState.servicesLoading,
+                providerServicesLoading = providerServicesLoading ?: currentState.providerServicesLoading,
+                busy = busy,
+                error = null,
+                notice = null,
+                servicesError = if (errorTarget == RequestErrorTarget.SERVICES) null else currentState.servicesError,
+                providerServicesError = if (errorTarget == RequestErrorTarget.PROVIDER_SERVICES) {
+                    null
+                } else {
+                    currentState.providerServicesError
+                },
+            )
             try {
                 request()
             } catch (exception: Exception) {
-                _state.value = _state.value.copy(error = exception.toUserMessage())
+                val message = exception.toUserMessage()
+                val latestState = _state.value
+                _state.value = latestState.copy(
+                    error = message,
+                    servicesError = if (errorTarget == RequestErrorTarget.SERVICES) {
+                        message
+                    } else {
+                        latestState.servicesError
+                    },
+                    providerServicesError = if (errorTarget == RequestErrorTarget.PROVIDER_SERVICES) {
+                        message
+                    } else {
+                        latestState.providerServicesError
+                    },
+                )
             } finally {
-                _state.value = _state.value.copy(loading = false, busy = false)
+                val latestState = _state.value
+                _state.value = latestState.copy(
+                    loading = false,
+                    servicesLoading = if (serviceLoading == true) {
+                        false
+                    } else {
+                        latestState.servicesLoading
+                    },
+                    providerServicesLoading = if (providerServicesLoading == true) {
+                        false
+                    } else {
+                        latestState.providerServicesLoading
+                    },
+                    busy = false,
+                )
             }
         }
     }
@@ -348,5 +421,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     private companion object {
         const val PROFILE_ID_KEY = "provider_profile_id"
+    }
+
+    private enum class RequestErrorTarget {
+        SERVICES,
+        PROVIDER_SERVICES,
     }
 }
