@@ -18,6 +18,7 @@ class ProviderProfileService(
     private val userRepository: UserRepository,
 ) {
     fun create(email: String, request: ProviderProfileRequest): ProviderProfileResponse {
+        request.validateMapCoordinates()
         val user = requireProvider(email)
         if (providerProfileRepository.findByUserId(requireUserId(user)) != null) {
             throw MarketplaceConflictException("Provider profile already exists")
@@ -30,6 +31,8 @@ class ProviderProfileService(
             description = request.description.trim(),
             location = request.location.trim(),
             contactInformation = request.contactInformation.trim(),
+            latitude = request.latitude,
+            longitude = request.longitude,
             createdAt = now,
             updatedAt = now,
         )
@@ -42,6 +45,7 @@ class ProviderProfileService(
     }
 
     fun update(email: String, request: ProviderProfileRequest): ProviderProfileResponse {
+        request.validateMapCoordinates()
         val user = requireProvider(email)
         val profile = providerProfileRepository.findByUserId(requireUserId(user))
             ?: throw MarketplaceNotFoundException("Provider profile not found")
@@ -50,6 +54,8 @@ class ProviderProfileService(
             description = request.description.trim(),
             location = request.location.trim(),
             contactInformation = request.contactInformation.trim(),
+            latitude = request.latitude,
+            longitude = request.longitude,
             updatedAt = Instant.now(),
         )
         return providerProfileRepository.save(updated).toResponse()
@@ -79,7 +85,15 @@ class ProviderProfileService(
         description = description,
         location = location,
         contactInformation = contactInformation,
+        latitude = latitude,
+        longitude = longitude,
         createdAt = createdAt,
         updatedAt = updatedAt,
     )
+
+    private fun ProviderProfileRequest.validateMapCoordinates() {
+        require((latitude == null) == (longitude == null)) {
+            "Enter both latitude and longitude to share a map location"
+        }
+    }
 }

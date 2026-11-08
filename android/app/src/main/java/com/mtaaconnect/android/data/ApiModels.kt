@@ -28,6 +28,8 @@ data class ProviderProfileDto(
     val description: String,
     val location: String,
     val contactInformation: String,
+    val latitude: Double?,
+    val longitude: Double?,
     val createdAt: String,
     val updatedAt: String,
 )
@@ -37,6 +39,8 @@ data class ProviderProfileRequest(
     val description: String,
     val location: String,
     val contactInformation: String,
+    val latitude: Double? = null,
+    val longitude: Double? = null,
 )
 
 data class ServiceDto(

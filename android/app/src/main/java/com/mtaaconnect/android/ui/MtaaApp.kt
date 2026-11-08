@@ -1,5 +1,11 @@
 package com.mtaaconnect.android.ui
 
+import android.content.ActivityNotFoundException
+import android.content.Intent
+import android.net.Uri
+import android.widget.Toast
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -15,6 +21,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -41,7 +48,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.Icons
@@ -74,9 +83,15 @@ fun MtaaApp(viewModel: AppViewModel) {
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
-                        Text("MtaaConnect", fontWeight = FontWeight.Bold)
-                        currentSession?.let { Text("${it.fullName} · ${it.role}", style = MaterialTheme.typography.labelSmall) }
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text("MtaaConnect", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge)
+                        currentSession?.let {
+                            Text(
+                                "${it.fullName} · ${it.role}",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f),
+                            )
+                        }
                     }
                 },
                 actions = {
@@ -88,12 +103,17 @@ fun MtaaApp(viewModel: AppViewModel) {
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface,
+                    actionIconContentColor = MaterialTheme.colorScheme.primary,
                 ),
             )
         },
         bottomBar = {
             if (currentSession != null) {
-                NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
+                NavigationBar(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 2.dp,
+                ) {
                     navigationItemsFor(currentSession.role).forEach { label ->
                         val destination = when (label) {
                             "Explore" -> "home"
@@ -261,7 +281,15 @@ private fun LoginScreen(
             visualTransformation = PasswordVisualTransformation(),
             modifier = Modifier.fillMaxWidth(),
         )
-        Button(onClick = { onLogin(email, password) }, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
+        Button(
+            onClick = { onLogin(email, password) },
+            enabled = !busy,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+            ),
+        ) {
             if (busy) CircularProgressIndicator() else Text("Sign in")
         }
         TextButton(onClick = onRegister, modifier = Modifier.align(Alignment.CenterHorizontally)) {
@@ -295,14 +323,32 @@ private fun RegisterScreen(
         Text("Account type", fontWeight = FontWeight.SemiBold)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf("CUSTOMER", "PROVIDER").forEach { candidate ->
-                if (candidate == role) Button(onClick = { role = candidate }) { Text(candidate.lowercase().replaceFirstChar(Char::uppercase)) }
-                else OutlinedButton(onClick = { role = candidate }) { Text(candidate.lowercase().replaceFirstChar(Char::uppercase)) }
+                if (candidate == role) {
+                    Button(
+                        onClick = { role = candidate },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary,
+                        ),
+                    ) { Text(candidate.lowercase().replaceFirstChar(Char::uppercase)) }
+                } else {
+                    OutlinedButton(
+                        onClick = { role = candidate },
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.primary,
+                        ),
+                    ) { Text(candidate.lowercase().replaceFirstChar(Char::uppercase)) }
+                }
             }
         }
         Button(
             onClick = { onRegister(fullName, email, password, phone, role) },
             enabled = !busy,
             modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+            ),
         ) { if (busy) CircularProgressIndicator() else Text("Create account") }
         TextButton(onClick = onLogin, modifier = Modifier.align(Alignment.CenterHorizontally)) { Text("Already registered? Sign in") }
     }
@@ -327,26 +373,28 @@ private fun ExploreScreen(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
             shape = MaterialTheme.shapes.large,
             color = MaterialTheme.colorScheme.primary,
+            tonalElevation = 2.dp,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
         ) {
             Column(
                 Modifier.padding(horizontal = 22.dp, vertical = 20.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 Text(
-                    "YOUR COMMUNITY, CONNECTED",
+                    "Trusted local expertise",
                     style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.78f),
+                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f),
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
-                    "Find trusted help\nright around you.",
+                    "Find help nearby.",
                     style = MaterialTheme.typography.headlineSmall,
                     color = MaterialTheme.colorScheme.onPrimary,
                     fontWeight = FontWeight.Bold,
                 )
                 Text(
-                    "Discover skilled local providers and book with confidence.",
-                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.88f),
+                    "Discover vetted professionals and book with confidence.",
+                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f),
                 )
             }
         }
@@ -376,6 +424,10 @@ private fun ExploreScreen(
                     Button(
                         onClick = { onFilter(categoryText, locationText) },
                         modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary,
+                        ),
                     ) { Text("Find services") }
                     TextButton(onClick = {
                         categoryText = ""
@@ -456,6 +508,14 @@ private fun ProviderPublicScreen(
     FormColumn(title = provider.businessName, subtitle = provider.location) {
         Text(provider.description)
         Text("Contact: ${provider.contactInformation}")
+        GoogleMapsButton(
+            query = if (provider.latitude != null && provider.longitude != null) {
+                "${provider.latitude},${provider.longitude}"
+            } else {
+                provider.location
+            },
+            label = "View location in Google Maps",
+        )
         OutlinedButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) { Text("Back to service") }
     }
 }
@@ -499,7 +559,11 @@ private fun BookingCard(
     onOpen: (BookingDto) -> Unit,
     onAction: (String, String) -> Unit,
 ) {
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.32f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+    ) {
         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("${booking.requestedDate} · ${booking.startTime}–${booking.endTime}", fontWeight = FontWeight.Bold)
             Text(
@@ -554,9 +618,29 @@ private fun ProviderDashboard(
     onRefresh: () -> Unit,
 ) {
     Column(Modifier.fillMaxSize()) {
-        Column(Modifier.padding(horizontal = 20.dp, vertical = 12.dp)) {
-            Text("Provider dashboard", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-            Text("Manage your profile, services, and incoming requests.")
+        Surface(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+            shape = MaterialTheme.shapes.large,
+            color = MaterialTheme.colorScheme.primaryContainer,
+        ) {
+            Column(
+                Modifier.padding(horizontal = 20.dp, vertical = 18.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Text(
+                    "PROVIDER STUDIO",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text("Your business, beautifully presented.", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text(
+                    "Manage your profile, services, and incoming requests.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 2.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = onProfile) { Text("Provider profile") }
                 Button(onClick = onAddService, enabled = profileId != null) { Text("Add service") }
@@ -575,7 +659,11 @@ private fun ProviderDashboard(
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             items(services, key = { it.id ?: it.name }) { service ->
-                Card {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.32f)),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                ) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(service.name, fontWeight = FontWeight.Bold)
                         Text("${service.category} · ${service.location} · KES ${service.price}")
@@ -596,25 +684,61 @@ private fun ProfileEditorScreen(
     profile: com.mtaaconnect.android.data.ProviderProfileDto?,
     busy: Boolean,
     onBack: () -> Unit,
-    onSave: (String, String, String, String, Boolean) -> Unit,
+    onSave: (String, String, String, String, String, String, Boolean) -> Unit,
 ) {
     var business by rememberSaveable(profile?.id) { mutableStateOf(profile?.businessName.orEmpty()) }
     var description by rememberSaveable(profile?.id) { mutableStateOf(profile?.description.orEmpty()) }
     var location by rememberSaveable(profile?.id) { mutableStateOf(profile?.location.orEmpty()) }
     var contact by rememberSaveable(profile?.id) { mutableStateOf(profile?.contactInformation.orEmpty()) }
+    var latitude by rememberSaveable(profile?.id) { mutableStateOf(profile?.latitude?.toString().orEmpty()) }
+    var longitude by rememberSaveable(profile?.id) { mutableStateOf(profile?.longitude?.toString().orEmpty()) }
     var updateExisting by rememberSaveable(profile?.id) { mutableStateOf(profile != null) }
     FormColumn(title = "Provider profile", subtitle = "Tell customers about your business.") {
         OutlinedTextField(business, { business = it }, label = { Text("Business name") }, modifier = Modifier.fillMaxWidth())
         OutlinedTextField(description, { description = it }, label = { Text("Description") }, modifier = Modifier.fillMaxWidth())
         OutlinedTextField(location, { location = it }, label = { Text("Location") }, modifier = Modifier.fillMaxWidth())
         OutlinedTextField(contact, { contact = it }, label = { Text("Contact information") }, modifier = Modifier.fillMaxWidth())
+        HorizontalDivider()
+        Text("Map location", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Text(
+            "Optional. Copy your business coordinates from Google Maps to share a public pin. Find the location, then long-press the map to drop a pin.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            OutlinedTextField(
+                latitude,
+                { latitude = it },
+                label = { Text("Latitude") },
+                modifier = Modifier.weight(1f),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            )
+            OutlinedTextField(
+                longitude,
+                { longitude = it },
+                label = { Text("Longitude") },
+                modifier = Modifier.weight(1f),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            )
+        }
+        val mapCoordinates = latitude.toDoubleOrNull()?.let { lat ->
+            longitude.toDoubleOrNull()?.let { lon -> "$lat,$lon" }
+        }
+        if (location.isNotBlank()) {
+            GoogleMapsButton(
+                query = mapCoordinates ?: location,
+                label = if (mapCoordinates == null) "Preview address in Google Maps" else "Preview pin in Google Maps",
+            )
+        }
         if (profile == null) {
             TextButton(onClick = { updateExisting = !updateExisting }) {
                 Text(if (updateExisting) "Switch to creating a new profile" else "Already have a profile? Update it")
             }
         }
         Button(
-            onClick = { onSave(business, description, location, contact, updateExisting) },
+            onClick = { onSave(business, description, location, contact, latitude, longitude, updateExisting) },
             enabled = !busy,
             modifier = Modifier.fillMaxWidth(),
         ) { if (busy) CircularProgressIndicator() else Text(if (updateExisting) "Update profile" else "Create profile") }
@@ -659,17 +783,19 @@ private fun ServiceCard(service: ServiceDto, onClick: () -> Unit) {
     Card(
         onClick = onClick,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.32f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
     ) {
         Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
             Surface(
                 shape = MaterialTheme.shapes.small,
-                color = MaterialTheme.colorScheme.primaryContainer,
+                color = MaterialTheme.colorScheme.secondaryContainer,
             ) {
                 Text(
                     service.category,
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
                     style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
                     fontWeight = FontWeight.SemiBold,
                 )
             }
@@ -698,17 +824,41 @@ private fun ServiceCard(service: ServiceDto, onClick: () -> Unit) {
 }
 
 @Composable
+private fun GoogleMapsButton(query: String, label: String) {
+    val context = LocalContext.current
+    OutlinedButton(
+        onClick = {
+            val uri = Uri.Builder()
+                .scheme("https")
+                .authority("www.google.com")
+                .path("/maps/search/")
+                .appendQueryParameter("api", "1")
+                .appendQueryParameter("query", query)
+                .build()
+            try {
+                context.startActivity(Intent(Intent.ACTION_VIEW, uri))
+            } catch (_: ActivityNotFoundException) {
+                Toast.makeText(context, "No app is available to open Google Maps.", Toast.LENGTH_LONG).show()
+            }
+        },
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Text(label)
+    }
+}
+
+@Composable
 private fun FormColumn(
     title: String,
     subtitle: String,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 22.dp),
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 22.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
         content = {
-            Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-            Text(subtitle, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f))
+            Text(title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            Text(subtitle, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f), style = MaterialTheme.typography.bodyLarge)
             content()
         },
     )

@@ -15,6 +15,8 @@ data class ProviderProfile(
     val description: String,
     val location: String,
     val contactInformation: String,
+    val latitude: Double? = null,
+    val longitude: Double? = null,
     val createdAt: Instant = Instant.now(),
     val updatedAt: Instant = createdAt,
 )

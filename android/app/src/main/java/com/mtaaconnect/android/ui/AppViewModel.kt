@@ -217,13 +217,39 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         description: String,
         location: String,
         contact: String,
+        latitude: String,
+        longitude: String,
         updateExisting: Boolean,
     ) {
         if (listOf(businessName, description, location, contact).any(String::isBlank)) {
             _state.value = _state.value.copy(error = "Complete every provider profile field.")
             return
         }
-        val request = ProviderProfileRequest(businessName.trim(), description.trim(), location.trim(), contact.trim())
+        val parsedLatitude = latitude.trim().takeIf(String::isNotEmpty)?.toDoubleOrNull()
+        val parsedLongitude = longitude.trim().takeIf(String::isNotEmpty)?.toDoubleOrNull()
+        val coordinateError = when {
+            latitude.isBlank() != longitude.isBlank() ->
+                "Enter both latitude and longitude, or leave both blank."
+            !latitude.isBlank() && (parsedLatitude == null || parsedLongitude == null) ->
+                "Enter valid numeric map coordinates."
+            parsedLatitude != null && parsedLatitude !in -90.0..90.0 ->
+                "Latitude must be between -90 and 90."
+            parsedLongitude != null && parsedLongitude !in -180.0..180.0 ->
+                "Longitude must be between -180 and 180."
+            else -> null
+        }
+        if (coordinateError != null) {
+            _state.value = _state.value.copy(error = coordinateError)
+            return
+        }
+        val request = ProviderProfileRequest(
+            businessName = businessName.trim(),
+            description = description.trim(),
+            location = location.trim(),
+            contactInformation = contact.trim(),
+            latitude = parsedLatitude,
+            longitude = parsedLongitude,
+        )
         launchRequest(busy = true) {
             val profile = if (updateExisting) {
                 repository.updateProviderProfile(request)

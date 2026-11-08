@@ -50,6 +50,12 @@ updates/deletes are scoped to the authenticated provider. Public reads return
 provider profiles and available services only; service search accepts optional
 `category` and partial `location` query parameters.
 
+Provider profiles accept optional `latitude` and `longitude` decimal fields.
+They must be supplied together and must be within the valid geographic ranges
+(-90 to 90 latitude, -180 to 180 longitude). The Android app uses these
+coordinates to open a public pin in Google Maps; no Google Maps API key is
+required. Treat the coordinates as public business-location information.
+
 | Method | Endpoint | Access |
 | --- | --- | --- |
 | `POST` | `/api/providers/profile` | Provider |

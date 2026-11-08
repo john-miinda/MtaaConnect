@@ -161,11 +161,13 @@ class MarketplaceIntegrationTest {
             post("/api/providers/profile")
                 .header("Authorization", bearer(provider.email, provider.role))
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(profileBody()),
+                .content(profileBody(latitude = "-1.2921", longitude = "36.8219")),
         )
             .andExpect(status().isCreated)
             .andExpect(jsonPath("$.id").value("profile-1"))
             .andExpect(jsonPath("$.userId").value(provider.id))
+            .andExpect(jsonPath("$.latitude").value(-1.2921))
+            .andExpect(jsonPath("$.longitude").value(36.8219))
 
         Mockito.`when`(providerProfileRepository.findByUserId(provider.id))
             .thenReturn(providerProfile(provider.id, "profile-1"))
@@ -209,6 +211,26 @@ class MarketplaceIntegrationTest {
     }
 
     @Test
+    fun `provider map coordinates must be complete and within geographic bounds`() {
+        val provider = providerUser()
+        val authorization = bearer(provider.email, provider.role)
+
+        mockMvc.perform(
+            post("/api/providers/profile")
+                .header("Authorization", authorization)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(profileBody(latitude = "-1.2921")),
+        ).andExpect(status().isBadRequest)
+
+        mockMvc.perform(
+            post("/api/providers/profile")
+                .header("Authorization", authorization)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(profileBody(latitude = "91.0", longitude = "36.8219")),
+        ).andExpect(status().isBadRequest)
+    }
+
+    @Test
     fun `provider can update their profile and cannot update a profile owned by another user`() {
         val owner = providerUser()
         val ownedProfile = providerProfile(owner.id!!, "profile-1")
@@ -221,10 +243,12 @@ class MarketplaceIntegrationTest {
             put("/api/providers/profile")
                 .header("Authorization", bearer(owner.email, owner.role))
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(profileBody("Updated business")),
+                .content(profileBody("Updated business", latitude = "-1.2864", longitude = "36.8172")),
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.businessName").value("Updated business"))
+            .andExpect(jsonPath("$.latitude").value(-1.2864))
+            .andExpect(jsonPath("$.longitude").value(36.8172))
 
         val anotherProvider = providerUser("other@example.com", "other-user")
         Mockito.`when`(userRepository.findByEmail(anotherProvider.email)).thenReturn(anotherProvider)
@@ -415,8 +439,15 @@ class MarketplaceIntegrationTest {
         return """{"fullName":"Test User","email":"test@example.com","password":"password","phoneNumber":"1234567890"$roleProperty}"""
     }
 
-    private fun profileBody(businessName: String = "Local Plumbing") =
-        """{"businessName":"$businessName","description":"Home plumbing repairs","location":"Nairobi","contactInformation":"provider@example.com"}"""
+    private fun profileBody(
+        businessName: String = "Local Plumbing",
+        latitude: String? = null,
+        longitude: String? = null,
+    ): String {
+        val latitudeProperty = latitude?.let { ""","latitude":$it""" } ?: ""
+        val longitudeProperty = longitude?.let { ""","longitude":$it""" } ?: ""
+        return """{"businessName":"$businessName","description":"Home plumbing repairs","location":"Nairobi","contactInformation":"provider@example.com"$latitudeProperty$longitudeProperty}"""
+    }
 
     private fun serviceBody(name: String = "Tap repair", price: String = "25.00") =
         """{"name":"$name","description":"Repair leaking taps","category":"Plumbing","price":$price,"location":"Nairobi","availabilityStatus":"AVAILABLE"}"""

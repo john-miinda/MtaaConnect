@@ -60,6 +60,13 @@ and booking actions call the backend routes documented in `backend/README.md`.
 Booking request dates and times use the backend's `requestedDate`, `startTime`,
 `endTime`, and IANA `timeZone` fields.
 
+Providers can optionally add latitude and longitude to their profile to share
+a precise business pin. Customers can open the provider's address or pin in
+Google Maps from the public provider profile. The link opens Google Maps (or a
+browser) and does not require a Google Maps SDK or API key. Shared coordinates
+are public, so providers should use a business location they are comfortable
+sharing.
+
 The backend does not currently expose an endpoint to retrieve the authenticated
 provider's profile or service listings by user identity. After profile creation
 the app keeps the returned profile ID locally to load that provider's listings.
