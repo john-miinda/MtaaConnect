@@ -1,0 +1,7 @@
+.gradle
+.kotlin
+build
+bin
+.env
+uploads
+*.log
